@@ -42,16 +42,88 @@ const indiaBounds = L.latLngBounds(
     L.latLng(5.0, 67.0), // Southwest corner
     L.latLng(38.0, 99.0)  // Northeast corner
 );
+const testBounds = L.latLngBounds(
+    L.latLng(5.0, 67.0), // Southwest corner
+
+    L.latLng(38.0, 99.0),  // Northeast corner
+    L.latLng(5.0, 99.0)  // Northeast corner
+);
+
+
+
 
 const map = L.map('map', {
     center: [20.5937, 78.9629],
-    zoom: 5,
+    zoom: 10,
     maxBounds: indiaBounds,
     maxBoundsViscosity: 1.0 // This makes the bounds "hard", user cannot drag outside
 });
 
+var polygon = L.polyline([
+    [30.74, 75.75],
+    [30.74, 79.5],
+    [20.5, 79.5],
+    [20.5, 75.5],
+    [30.74, 75.75],
+
+
+],
+
+
+
+
+
+    {
+
+
+
+        dashArray: '5, 10',
+    }).addTo(map);
+
+
+var popup = L.popup();
+
+function onMapClick(e) {
+    popup
+        .setLatLng(e.latlng)
+        .setContent("You clicked the map at " + e.latlng.toString())
+        .openOn(map);
+}
+
+map.on('click', onMapClick);
+
+L.Map.addInitHook('addHandler', 'cursorHandler', L.CursorHandler);
+
 // Set a minimum zoom level to prevent zooming out too far
 map.setMinZoom(5);
+
+  fetch('/landprices')
+      .then(res => res.json())
+      .then(data => {
+        // Assuming backend returns an array of objects like:
+        // [{ Latitude: 12.97, Longitude: 77.59, Land_Price_lakhs_per_acre: 50 }, ...]
+
+        const heatData = data.map(item => [
+          item[0],
+          item[1],
+          item[2] // weight (intensity)
+        ]);
+        console.log(heatData);
+        // Add heat layer
+        L.heatLayer(heatData, {
+          radius: 25,
+          blur: 15,
+          maxZoom: 17,
+        }).addTo(map);
+      })
+      .catch(err => {
+        console.error("Error fetching land prices:", err);
+      });
+
+
+
+
+
 
 const updateMapTheme = () => {
     const theme = docElement.classList.contains('dark') ? 'dark' : 'light';
@@ -66,7 +138,7 @@ const updateMapTheme = () => {
 
 // --- DYNAMIC DATA FROM BACKEND ---
 // The 'mapData' variable is now globally available, injected from index.html
-const layerGroups = { assets: L.layerGroup(), renewables: L.layerGroup(), demand: L.layerGroup(), transport: L.layerGroup(), optimised: L.layerGroup() };
+const layerGroups = { assets: L.layerGroup(), renewables: L.layerGroup(), demand: L.layerGroup(), transport: L.layerGroup(), optimised: L.layerGroup(), landPrices: L.layerGroup() };
 
 const icons = {
     plant: (status) => L.divIcon({ className: 'custom-div-icon', html: `<div style="background-color: ${status === 'Existing' ? '#22c55e' : '#f97316'};" class="h-6 w-6 rounded-full border-2 border-white shadow-md"></div>`, iconSize: [24, 24], iconAnchor: [12, 12] }),
@@ -80,18 +152,20 @@ function populateLayers() {
     mapData.renewables.forEach(s => L.marker([s.lat, s.lng], { icon: icons.renewable(s.type) }).bindPopup(`<b>${s.name}</b><br>Type: ${s.type}<br>Potential: ${s.potential} MW`).addTo(layerGroups.renewables));
     mapData.demand.forEach(c => L.circle([c.lat, c.lng], { color: '#ef4444', fillColor: '#ef4444', fillOpacity: 0.3, radius: c.demand === 'High' ? 100000 : 50000 }).bindPopup(`<b>${c.name}</b><br>Demand: ${c.demand}`).addTo(layerGroups.demand));
     L.geoJSON(mapData.transport, { style: { color: '#4b5563', weight: 2, dashArray: '5, 5' } }).bindPopup('Proposed Hydrogen Pipeline').addTo(layerGroups.transport);
+    L.heatLayer
 }
 
-const layerControlCheckboxes = { 
-    existingAssets: layerGroups.assets, 
-    renewableSources: layerGroups.renewables, 
-    demandCenters: layerGroups.demand, 
-    transportLogistics: layerGroups.transport 
+const layerControlCheckboxes = {
+    existingAssets: layerGroups.assets,
+    renewableSources: layerGroups.renewables,
+    demandCenters: layerGroups.demand,
+    transportLogistics: layerGroups.transport,
+    landPrices: layerGroups.landPrices
 };
 
 for (const [id, group] of Object.entries(layerControlCheckboxes)) {
     const checkbox = document.getElementById(id);
-    if(checkbox.checked) map.addLayer(group);
+    if (checkbox.checked) map.addLayer(group);
     checkbox.addEventListener('change', (e) => e.target.checked ? map.addLayer(group) : map.removeLayer(group));
 }
 
